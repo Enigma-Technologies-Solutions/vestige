@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vestige Deploy</title>
+<meta name="description" content="Deploy Vestige.sol to the same CREATE2 address on every supported chain, signing with a WalletConnect or browser wallet.">
+<!-- Scripts and styles come only from this origin. connect-src: the chains' public RPCs (reads), WalletConnect's relay
+     (wallet session), and the local node for ?local=1. frame-src: WalletConnect's verify iframe. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' https://ethereum-rpc.publicnode.com https://ethereum-sepolia-rpc.publicnode.com https://mainnet.base.org https://sepolia.base.org https://rpc.monad.xyz https://testnet-rpc.monad.xyz https://*.walletconnect.org https://*.walletconnect.com wss://*.walletconnect.org wss://*.walletconnect.com https://*.reown.com http://127.0.0.1:8545; frame-src https://verify.walletconnect.org https://verify.walletconnect.com; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/assets/fonts/Inter-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/Poppins-700.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/styles.css">
+<script src="/theme.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<nav class="nav" aria-label="Primary">
+  <div class="wrap nav__inner">
+    <a class="wordmark" href="#top" aria-label="Vestige deploy home">VESTIGE<span class="wordmark__sq" aria-hidden="true"></span></a>
+    <div class="nav__links">
+      <a href="#build">Build</a>
+      <a href="#wallet">Wallet</a>
+      <a href="#networks">Networks</a>
+      <a href="/">Lab</a>
+    </div>
+    <div class="nav__cta">
+      <span class="st" id="walletTag">No wallet</span>
+      <button class="btn btn--ghost btn--sm" id="theme" type="button">Dark</button>
+    </div>
+  </div>
+</nav>
+
+<main id="main">
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <p class="eyebrow">Vestige protocol · deployment</p>
+    <h1>One build, <em>one address,</em> every chain.</h1>
+    <p class="hero__sub">This page sends the exact compiled <code>Vestige.sol</code> through the CREATE2 factory every target chain shares. The address depends only on the factory, the salt and the code, so it is the same everywhere and commits to this bytecode. Your wallet signs; this page reads each chain directly to check it first and confirm after.</p>
+    <div class="status" id="status" role="status" aria-live="polite">
+      <span class="st" id="statusTag">Init</span>
+      <span class="status__text" id="statusText">Loading the build…</span>
+    </div>
+  </div>
+</header>
+
+<section class="section section--alt" id="build">
+  <div class="wrap">
+    <div class="shead">
+      <div>
+        <p class="eyebrow">01 / Build</p>
+        <h2 class="h2">What gets deployed</h2>
+      </div>
+      <p class="lede">The page recomputes the address from the creation code below before it lets you deploy anything. The same code is checked against <a class="link" href="/#source">the source</a> in the lab.</p>
+    </div>
+    <div class="card verify">
+      <div class="verify__head">
+        <h3>Deployment bundle</h3>
+        <span class="st" id="buildTag">Checking</span>
+      </div>
+      <dl class="kv" id="buildFacts"></dl>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="wallet">
+  <div class="wrap">
+    <div class="shead">
+      <div>
+        <p class="eyebrow">02 / Wallet</p>
+        <h2 class="h2">Connect the deployer</h2>
+      </div>
+      <p class="lede">WalletConnect pairs a wallet on another device by QR code. It needs a project id from <a class="link" href="https://dashboard.reown.com" target="_blank" rel="noopener">dashboard.reown.com</a>; it is stored only in this browser. A browser extension wallet works too, and for testnets the page can make a throwaway test wallet you fund yourself. The deployer gets no role in the contract: Vestige has no owner.</p>
+    </div>
+
+    <div class="duo">
+      <article class="win" aria-labelledby="wcTitle">
+        <div class="win__bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title">walletconnect · reown relay</span></div>
+        <div class="win__body">
+          <div class="win__head"><h3 id="wcTitle">Connect</h3></div>
+          <div class="controls">
+            <input class="field" id="projectId" aria-label="WalletConnect project id" placeholder="WalletConnect project id" autocomplete="off" spellcheck="false">
+            <button class="btn btn--volt" id="connectWc" type="button">WalletConnect</button>
+          </div>
+          <div class="controls">
+            <button class="btn btn--ghost" id="connectInjected" type="button">Browser wallet</button>
+            <button class="btn btn--ghost" id="connectTest" type="button">Test wallet</button>
+            <button class="btn btn--ghost" id="disconnect" type="button">Disconnect</button>
+          </div>
+          <div class="pair" id="pair" hidden>
+            <img class="pair__qr" id="qr" alt="WalletConnect pairing QR code" width="232" height="232">
+            <div class="pair__text">
+              <p>Scan with the wallet that holds the deployer account, or copy the pairing link into it.</p>
+              <button class="btn btn--ghost btn--sm" id="copyUri" type="button">Copy pairing link</button>
+            </div>
+          </div>
+          <div class="pair" id="testWallet" hidden>
+            <img class="pair__qr" id="twQr" alt="Test wallet address QR code" width="232" height="232">
+            <div class="pair__text">
+              <p><strong>Test wallet, testnets only.</strong> Send Sepolia, Base Sepolia or Monad testnet funds to</p>
+              <code class="addr" id="twAddress"></code>
+              <p class="fine">Generated in this browser; its key is stored unencrypted in this browser's storage. It refuses mainnets. Send only testnet funds.</p>
+              <div class="btn-row">
+                <button class="btn btn--ghost btn--sm" id="twCopy" type="button">Copy address</button>
+                <button class="btn btn--ghost btn--sm" id="twKey" type="button">Copy private key</button>
+                <button class="btn btn--ghost btn--sm" id="twForget" type="button">Delete</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="win" aria-labelledby="acctTitle">
+        <div class="win__bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title">deployer account</span></div>
+        <div class="win__body">
+          <div class="win__head"><h3 id="acctTitle">Account</h3></div>
+          <dl class="kv">
+            <dt>Via</dt><dd id="via">—</dd>
+            <dt>Address</dt><dd id="account" class="hl">—</dd>
+            <dt>ENS</dt><dd id="ens">—</dd>
+            <dt>Wallet chain</dt><dd id="walletChain">—</dd>
+            <dt>Session chains</dt><dd id="sessionChains">—</dd>
+          </dl>
+          <div class="window">
+            <label class="window__label" for="expected">Expected</label>
+            <input class="field" id="expected" value="jjpa.eth" autocomplete="off" spellcheck="false" aria-describedby="expectedNote">
+            <span class="st" id="expectedTag">—</span>
+          </div>
+          <p class="fine" id="expectedNote">Resolved on Ethereum mainnet and compared with the connected address before any mainnet deploy. Testnets take any account.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section section--alt" id="networks">
+  <div class="wrap">
+    <div class="shead">
+      <div>
+        <p class="eyebrow">03 / Networks</p>
+        <h2 class="h2">Check, deploy, confirm</h2>
+      </div>
+      <p class="lede">Each chain is probed over its public RPC: P-256 precompile, honest <code>blockhash</code>, EIP-2935 history, and the CREATE2 factory's code and address derivation. Deploy unlocks only when the required checks pass and nothing is there yet. Testnets first.</p>
+    </div>
+    <div class="netctl">
+      <label class="check"><input type="checkbox" id="showMainnets"> Show mainnets</label>
+      <button class="btn btn--ghost btn--sm" id="recheck" type="button">Re-check all</button>
+      <button class="btn btn--ghost btn--sm" id="downloadManifest" type="button">Download deployments.json</button>
+    </div>
+    <div class="netgrid" id="netgrid"></div>
+  </div>
+</section>
+
+<section class="section" id="activity">
+  <div class="wrap">
+    <div class="shead">
+      <div>
+        <p class="eyebrow">04 / Activity</p>
+        <h2 class="h2">What happened</h2>
+      </div>
+      <p class="lede">Every wallet request, transaction and check result in this session. Public data only.</p>
+    </div>
+    <div class="logctl">
+      <button class="btn btn--ghost btn--sm" id="downloadLog" type="button">Download session log</button>
+    </div>
+    <ul class="log" id="journal"><li class="log__empty">Nothing yet.</li></ul>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot__top">
+      <div>
+        <a class="wordmark" href="#top">VESTIGE<span class="wordmark__sq" aria-hidden="true"></span></a>
+        <p class="foot__blurb">On-chain proof that two P-256 keys co-signed a recent block. Deterministic deployment across chains.</p>
+      </div>
+    </div>
+    <div class="foot__bar">
+      <span class="ets" aria-hidden="true">ETS</span>
+      <span>© 2026 Enigma Technologies Solutions</span>
+      <span class="foot__bar-sp">Vestige · deploy tool</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/vendor/ethers.umd.min.js"></script>
+<script src="/vendor/wallet.js"></script>
+<script src="/deploy.js"></script>
+</body>
+</html>

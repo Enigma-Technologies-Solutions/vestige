@@ -1,0 +1,29 @@
+{
+  "name": "vestige",
+  "version": "1.0.0",
+  "description": "On-chain verification of co-signed recent block hashes with P-256 keys",
+  "scripts": {
+    "test": "hardhat test",
+    "test:fallback": "P256_PRECOMPILE=0 hardhat test",
+    "node": "hardhat node",
+    "deploy": "hardhat run scripts/deploy.js --network localhost",
+    "serve": "node scripts/serve.js",
+    "deploy:build": "node scripts/build-wallet.js && hardhat run scripts/export-deploy.js",
+    "deploy:local-factory": "hardhat run scripts/local-factory.js --network localhost",
+    "verify": "hardhat run scripts/verify.js",
+    "verify:key": "node scripts/check-etherscan-key.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "5.0.0",
+    "@openzeppelin/contracts": "5.6.1",
+    "@walletconnect/ethereum-provider": "2.25.0",
+    "esbuild": "0.28.2",
+    "ethers": "6.17.0",
+    "hardhat": "2.28.6",
+    "qrcode-generator": "2.0.4"
+  },
+  "private": true
+}

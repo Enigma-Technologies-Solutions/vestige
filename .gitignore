@@ -1,0 +1,11 @@
+node_modules
+artifacts
+cache
+typechain-types
+coverage
+coverage.json
+.env
+web/deployment.json
+web/contract-source.json
+web/deploy-bundle.json
+web/vendor/

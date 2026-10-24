@@ -1,0 +1,44 @@
+{
+  "10143": {
+    "network": "monadTestnet",
+    "address": "0xc5b8A9e7175c102d51116249F121A65079224b6f",
+    "runtimeHash": "0xfa43f529928cd8598fca3d3feb49ff50ff09517bc80be99c24108524a1fde02e",
+    "checkedAt": "2026-10-24T20:56:41.939Z",
+    "sourcify": {
+      "attempt": "submitted",
+      "status": "exact_match"
+    },
+    "etherscan": {
+      "attempt": "failed: The block explorer's API responded that the contract contracts/Vestige.sol:Vestige at 0xc5b8A9e7175c102d51116249F121A65079224b6f is already verified.",
+      "status": "verified"
+    }
+  },
+  "84532": {
+    "network": "baseSepolia",
+    "address": "0xc5b8A9e7175c102d51116249F121A65079224b6f",
+    "runtimeHash": "0xfa43f529928cd8598fca3d3feb49ff50ff09517bc80be99c24108524a1fde02e",
+    "checkedAt": "2026-10-24T20:56:29.770Z",
+    "sourcify": {
+      "attempt": "already verified",
+      "status": "exact_match"
+    },
+    "etherscan": {
+      "attempt": "submitted",
+      "status": "verified"
+    }
+  },
+  "11155111": {
+    "network": "sepolia",
+    "address": "0xc5b8A9e7175c102d51116249F121A65079224b6f",
+    "runtimeHash": "0xfa43f529928cd8598fca3d3feb49ff50ff09517bc80be99c24108524a1fde02e",
+    "checkedAt": "2026-10-24T19:48:47.488Z",
+    "sourcify": {
+      "attempt": "already verified",
+      "status": "exact_match"
+    },
+    "etherscan": {
+      "attempt": "submitted",
+      "status": "verified"
+    }
+  }
+}

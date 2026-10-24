@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vestige Lab</title>
+<meta name="description" content="Vestige co-signature lab: a signer and a passkey co-sign a recent block, verified and recorded by Vestige.sol on a local chain. Beacon and Handshake modes.">
+<!-- Scripts and styles come only from this origin; connect-src allows the local JSON-RPC node. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* https://sepolia.base.org https://testnet-rpc.monad.xyz https://ethereum-sepolia-rpc.publicnode.com; form-action 'none'; base-uri 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="preload" href="/assets/fonts/Inter-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/assets/fonts/Poppins-700.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/styles.css">
+<script src="/theme.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<nav class="nav" aria-label="Primary">
+  <div class="wrap nav__inner">
+    <a class="wordmark" href="#top" aria-label="Vestige lab home">VESTIGE<span class="wordmark__sq" aria-hidden="true"></span></a>
+    <div class="nav__links">
+      <a href="#ceremony">Ceremony</a>
+      <a href="#chain">Contract</a>
+      <a href="#record">Public record</a>
+      <a href="#source">Source</a>
+    </div>
+    <div class="nav__cta">
+      <select class="field netpick" id="network" aria-label="Network"></select>
+      <span class="st" id="net">Connecting</span>
+      <button class="btn btn--ghost btn--sm" id="theme" type="button">Dark</button>
+    </div>
+  </div>
+</nav>
+
+<main id="main">
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <p class="eyebrow">Vestige protocol · co-signature lab</p>
+    <h1>Two keys, one recent block, <em>proof on-chain.</em></h1>
+    <p class="hero__sub">A signer signs a statement about the chain's latest block. A passkey co-signs it. <code>Vestige.sol</code> checks both P-256 signatures against the chain's own block hash and records the encounter for anyone to verify.</p>
+    <div class="status" id="status" role="status" aria-live="polite">
+      <span class="st" id="statusTag">Init</span>
+      <span class="status__text" id="statusText">Initializing…</span>
+    </div>
+  </div>
+</header>
+
+<div class="strip">
+  <div class="wrap strip__inner">
+    <span class="strip__label">In this lab</span>
+    <ul>
+      <li>Real passkeys (WebAuthn)</li>
+      <li>Real contract on a local node</li>
+      <li>Native P-256 verification</li>
+      <li>Record rebuilt from chain events</li>
+    </ul>
+  </div>
+</div>
+
+<section class="section section--alt" id="ceremony">
+  <div class="wrap">
+    <div class="shead">
+      <div>
+        <p class="eyebrow">01 · 02 / The ceremony</p>
+        <h2 class="h2">Co-sign a block</h2>
+      </div>
+      <p class="lede"><b>Beacon:</b> A is an unattended device key that re-signs block <code>head − 1</code> every block, like a door reader or an IoT device. <b>Handshake:</b> A is a person whose passkey signs once. Either way A declares a window, <code>maxAge</code> blocks, inside what it signs, and B must co-sign within it. The contract sees a signer, a window and a cosigner.</p>
+    </div>
+
+    <div class="modebar">
+      <div class="seg" role="group" aria-label="Mode">
+        <button type="button" id="modeBeacon" aria-pressed="true" data-always><span>Beacon</span><small>device + passkey</small></button>
+        <button type="button" id="modeHandshake" aria-pressed="false" data-always><span>Handshake</span><small>two passkeys</small></button>
+      </div>
+      <p class="fine" id="modeNote">A signs every block without a prompt.</p>
+    </div>
+
+    <div class="card registry">
+      <div class="registry__head">
+        <h3>Passkeys on this device</h3>
+        <span class="fine" id="passkeyCount">None enrolled</span>
+      </div>
+      <div class="controls">
+        <input class="field" id="label" aria-label="Passkey label" value="Passkey 1">
+        <select class="field" id="attachment" aria-label="Authenticator">
+          <option value="any">Any authenticator</option>
+          <option value="platform">This device</option>
+          <option value="cross-platform">Security key / phone</option>
+        </select>
+        <button class="btn btn--ghost" id="enroll" type="button">Enroll passkey</button>
+        <select class="field" id="passkeys" aria-label="Enrolled passkeys"></select>
+        <button class="btn btn--ghost" id="forget" type="button">Forget</button>
+      </div>
+      <p class="fine only-handshake" hidden>Handshake needs two different passkeys: one for A, one for B. On one device that means enrolling twice; with “Security key / phone” B can be your phone.</p>
+    </div>
+
+    <div class="duo">
+      <article class="win" aria-labelledby="aTitle">
+        <div class="win__bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title" id="aBar">signer · beacon device key</span></div>
+        <div class="win__body">
+          <div class="win__head">
+            <h3 id="aTitle"><span class="role" aria-hidden="true">A</span><span id="aName">Beacon</span></h3>
+            <p class="only-beacon">Non-extractable WebCrypto P-256 key in IndexedDB. Signs <code>sha256(abi.encode(tag, chainId, vestige, n, blockhash, maxAge))</code> every block.</p>
+            <p class="only-handshake" hidden>A passkey signs the same statement digest as its WebAuthn challenge, once, when you tap.</p>
+          </div>
+          <div class="window">
+            <label class="window__label" for="window">Window</label>
+            <input class="field field--num" id="window" type="number" min="1" max="256" step="1" value="32" inputmode="numeric">
+            <span class="window__unit">blocks · signed by A, enforced by the contract</span>
+          </div>
+          <div class="controls only-handshake" hidden>
+            <select class="field" id="signerKey" aria-label="Signer passkey (A)"></select>
+            <button class="btn btn--volt" id="signA" type="button">Sign as A</button>
+          </div>
+          <dl class="kv">
+            <dt>Signer</dt><dd id="aKey">—</dd>
+            <dt>Format</dt><dd id="aKind">—</dd>
+            <dt>Anchor</dt><dd id="aBlock" class="hl">—</dd>
+            <dt>Window</dt><dd id="aWindow">—</dd>
+            <dt>Block hash</dt><dd id="aHash">—</dd>
+            <dt>Digest</dt><dd id="aDigest">—</dd>
+            <dt>Signature</dt><dd id="aSig">—</dd>
+          </dl>
+          <label class="check only-beacon"><input type="checkbox" id="freeze"> Freeze statement (simulate an old QR)</label>
+        </div>
+      </article>
+
+      <article class="win" aria-labelledby="bTitle">
+        <div class="win__bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title">cosigner · webauthn passkey</span></div>
+        <div class="win__body">
+          <div class="win__head">
+            <h3 id="bTitle"><span class="role" aria-hidden="true">B</span>Cosigner</h3>
+            <p>The passkey signs <code>keccak256(COSIGN_TAG, digest, signerKey)</code>, binding itself to A's exact statement.</p>
+          </div>
+          <div class="controls">
+            <select class="field" id="cosignerKey" aria-label="Cosigner passkey (B)"></select>
+          </div>
+          <div class="btn-row">
+            <button class="btn btn--volt" id="cosign" type="button">Co-sign as B</button>
+            <button class="btn btn--volt" id="submit" type="button">Submit cosign()</button>
+          </div>
+          <div class="outcome">
+            <span class="outcome__label" id="resultLabel">Not recorded</span>
+            <span class="st" id="result">Idle</span>
+          </div>
+          <div class="meter" id="meter">
+            <div class="meter__track"><div class="meter__fill" id="meterFill"></div></div>
+            <span class="meter__text" id="age">No statement yet</span>
+          </div>
+          <pre class="trace" id="steps">Enroll a passkey, then co-sign.</pre>
+          <details class="payload"><summary>Evidence payload</summary><pre class="trace" id="payload">None</pre></details>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="chain">
+  <div class="wrap">
+    <div class="shead">
+      <div>
+        <p class="eyebrow">03 · 04 / Contract</p>
+        <h2 class="h2">Try to break it</h2>
+      </div>
+      <p class="lede">Each attack submits a variant of the current or last accepted evidence. The contract rejects it, and its custom error is logged here.</p>
+    </div>
+
+    <div class="duo">
+      <article class="win" aria-labelledby="chainTitle">
+        <div class="win__bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title" id="chainBar">vestige.sol · local node</span></div>
+        <div class="win__body">
+          <div class="win__head"><h3 id="chainTitle">Contract</h3></div>
+          <dl class="kv">
+            <dt>RPC</dt><dd id="rpc">—</dd>
+            <dt>Chain</dt><dd id="chainId">—</dd>
+            <dt>Vestige</dt><dd id="address">—</dd>
+            <dt>Head</dt><dd id="head" class="hl">—</dd>
+            <dt>Policy</dt><dd id="policy">—</dd>
+            <dt>Relayer</dt><dd id="relayer">—</dd>
+            <dt>Source</dt><dd><a class="link" href="#source" id="sourceLink">Read the verified source ↓</a></dd>
+          </dl>
+          <div class="btn-row">
+            <button class="btn btn--ghost btn--sm" id="replay" type="button">Replay last accepted</button>
+            <button class="btn btn--ghost btn--sm" id="stale" type="button">Mine past the window, submit</button>
+            <button class="btn btn--ghost btn--sm" id="stretch" type="button">Stretch the window</button>
+            <button class="btn btn--ghost btn--sm" id="forge" type="button">Forge block hash</button>
+            <button class="btn btn--ghost btn--sm" id="swapSigner" type="button">Wrong signer key</button>
+            <button class="btn btn--ghost btn--sm" id="swapCosigner" type="button">Wrong cosigner key</button>
+            <button class="btn btn--ghost btn--sm" id="selfCosign" type="button">Self co-sign</button>
+          </div>
+        </div>
+      </article>
+
+      <article class="win" aria-labelledby="rejTitle">
+        <div class="win__bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title">rejected attempts · this page only</span></div>
+        <div class="win__body">
+          <div class="win__head">
+            <h3 id="rejTitle">Rejected</h3>
+            <p>Reverts are not events, so this log lives in the page. Accepted co-signatures are read back from the chain below.</p>
+          </div>
+          <div class="btn-row logctl">
+            <button class="btn btn--volt btn--sm" id="downloadLog" type="button" data-always>Download session log</button>
+            <button class="btn btn--ghost btn--sm" id="clearLog" type="button" data-always>Clear</button>
+            <span class="fine" id="logInfo">0 events recorded</span>
+          </div>
+          <p class="fine">The JSON log covers what the node never sees: passkey prompts and cancellations, clientDataJSON and authenticator flags, evidence and decoded errors. Match it to the node log by block number or tx hash. Public data only.</p>
+          <div class="log">
+            <div class="log__bar">attempt → custom error</div>
+            <ul id="rejected"><li class="log__empty">None yet.</li></ul>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section section--alt" id="record">
+  <div class="wrap">
+    <div class="shead">
+      <div>
+        <p class="eyebrow">05 / Public record</p>
+        <h2 class="h2">On the record</h2>
+      </div>
+      <p class="lede">Every <code>Cosigned</code> event, read from the contract's logs, not this browser's storage. Any client with the RPC can rebuild this table and check each co-signature's anchor gap.</p>
+    </div>
+    <div class="table-scroll">
+      <table class="rec">
+        <thead><tr><th>Included</th><th>Anchor</th><th>Age / window</th><th>Mode</th><th>Signer</th><th>Cosigner</th><th>cosignId</th><th>Tx</th></tr></thead>
+        <tbody id="events"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="source">
+  <div class="wrap">
+    <div class="shead">
+      <div>
+        <p class="eyebrow">06 / Source</p>
+        <h2 class="h2">Read the contract</h2>
+      </div>
+      <p class="lede">The exact files compiled into the deployed bytecode, checked by this page against the code at the contract's address: bytecode, compiler metadata, and every source file's hash.</p>
+    </div>
+
+    <div class="card verify">
+      <div class="verify__head">
+        <h3>Deployed code ↔ source</h3>
+        <span class="st" id="verifyTag">Checking</span>
+      </div>
+      <ul class="checks" id="checks"><li class="log__empty">Loading the source bundle…</li></ul>
+      <dl class="kv" id="buildFacts"></dl>
+      <p class="fine">What this proves: the code at the address is byte-for-byte the compiler output shipped with this page (no constructor arguments or immutables, so the same build is the same code on every chain), and that output's embedded metadata hash commits to these exact files. What it does not: that the compiler turned these files into that output. For that, recompile with the settings above and compare.</p>
+    </div>
+
+    <div class="srcview">
+      <nav class="files" aria-label="Source files" id="files"></nav>
+      <article class="win srcwin">
+        <div class="win__bar"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title" id="fileTitle">—</span></div>
+        <div class="filebar">
+          <span class="fine" id="fileFacts">—</span>
+          <button class="btn btn--ghost btn--sm" id="downloadSource" type="button" data-always>Download file</button>
+        </div>
+        <div class="code" id="code" tabindex="0" aria-label="Source code"></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot__top">
+      <div>
+        <a class="wordmark" href="#top">VESTIGE<span class="wordmark__sq" aria-hidden="true"></span></a>
+        <p class="foot__blurb">On-chain proof that two P-256 keys co-signed a recent block. Development lab on a local node or public testnets.</p>
+      </div>
+    </div>
+    <div class="foot__bar">
+      <span class="ets" aria-hidden="true">ETS</span>
+      <span>© 2026 Enigma Technologies Solutions</span>
+      <span class="foot__bar-sp">Vestige · lab build · not for production</span>
+    </div>
+  </div>
+</footer>
+
+<script src="/vendor/ethers.umd.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
