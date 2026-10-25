@@ -249,7 +249,8 @@ async function initWc(projectId) {
   });
   p.on('display_uri', showPairing);
   p.signer?.client?.core?.relayer?.on?.('relayer_error', e => { relayError = e?.message ?? String(e); record('wallet.relay.error', { error: relayError }); });
-  p.on('accountsChanged', a => { if (a[0] && wallet?.via === 'WalletConnect') adoptWallet(p, 'WalletConnect', a[0]); });
+  // Wallets re-announce the same account on every chain switch; only a different account is a new wallet.
+  p.on('accountsChanged', a => { if (a[0] && wallet?.via === 'WalletConnect' && ethers.getAddress(a[0]) !== wallet.account) adoptWallet(p, 'WalletConnect', a[0]); });
   p.on('chainChanged', renderWallet);
   p.on('disconnect', () => { record('wallet.disconnected', { text: 'WalletConnect session ended' }); dropWallet(); });
   return p;
@@ -270,7 +271,7 @@ function showPairing(uri) {
 async function connectInjected() {
   check(window.ethereum, 'No browser wallet found in this browser');
   const [account] = await window.ethereum.request({ method: 'eth_requestAccounts' });
-  window.ethereum.on?.('accountsChanged', a => a[0] ? adoptWallet(window.ethereum, 'Browser wallet', a[0]) : dropWallet());
+  window.ethereum.on?.('accountsChanged', a => !a[0] ? dropWallet() : ethers.getAddress(a[0]) !== wallet?.account && adoptWallet(window.ethereum, 'Browser wallet', a[0]));
   window.ethereum.on?.('chainChanged', renderWallet);
   adoptWallet(window.ethereum, 'Browser wallet', account);
 }
@@ -405,10 +406,12 @@ async function deploy(net) {
   try {
     await probe(net); // fresh state right before sending
     check(net.state === 'ready', `${chain.name} is not ready: ${net.note}`);
-    check(net.account?.gas, `Gas estimate failed: ${net.account?.gasError ?? 'unknown'}`);
-    check(net.account.balance >= (net.account.cost ?? 0n), `Not enough ${chain.native} on ${chain.name}: need about ${ethers.formatEther(net.account.cost)}`);
+    // A snapshot: account events during the chain switch re-read (and briefly clear) net.account.
+    const account = net.account;
+    check(account?.gas, `Gas estimate failed: ${account?.gasError ?? 'unknown'}`);
+    check(account.balance >= (account.cost ?? 0n), `Not enough ${chain.native} on ${chain.name}: need about ${ethers.formatEther(account.cost)}`);
     if (!chain.testnet) {
-      const ok = confirm(`Deploy Vestige to ${chain.name} (chain ${chain.id})?\n\nAddress ${B.address}\nEstimated cost ≈ ${ethers.formatEther(net.account.cost)} ${chain.native}\n\nThis is a mainnet transaction and cannot be undone.`);
+      const ok = confirm(`Deploy Vestige to ${chain.name} (chain ${chain.id})?\n\nAddress ${B.address}\nEstimated cost ≈ ${ethers.formatEther(account.cost)} ${chain.native}\n\nThis is a mainnet transaction and cannot be undone.`);
       check(ok, 'Cancelled');
     }
 
@@ -419,7 +422,7 @@ async function deploy(net) {
     check(active === chain.id, `The wallet is on chain ${active}, not ${chain.id}`);
     renderWallet();
 
-    const tx = { from: wallet.account, to: B.factory, data: ethers.concat([B.salt, B.initcode]), gas: ethers.toQuantity(net.account.gas * 12n / 10n) };
+    const tx = { from: wallet.account, to: B.factory, data: ethers.concat([B.salt, B.initcode]), gas: ethers.toQuantity(account.gas * 12n / 10n) };
     record('tx.request', { chain: chain.name, text: `${chain.name}: CREATE2 via factory · gas ${tx.gas}` });
     net.note = 'Confirm the transaction in the wallet'; renderNets();
     status(`Confirm the deployment on ${chain.name} in your wallet…`, 'warn', 'Wallet');

@@ -1,4 +1,46 @@
 {
+  "1": {
+    "network": "mainnet",
+    "address": "0xc5b8A9e7175c102d51116249F121A65079224b6f",
+    "runtimeHash": "0xfa43f529928cd8598fca3d3feb49ff50ff09517bc80be99c24108524a1fde02e",
+    "checkedAt": "2026-10-25T16:15:51.849Z",
+    "sourcify": {
+      "attempt": "already verified",
+      "status": "exact_match"
+    },
+    "etherscan": {
+      "attempt": "submitted",
+      "status": "verified"
+    }
+  },
+  "143": {
+    "network": "monad",
+    "address": "0xc5b8A9e7175c102d51116249F121A65079224b6f",
+    "runtimeHash": "0xfa43f529928cd8598fca3d3feb49ff50ff09517bc80be99c24108524a1fde02e",
+    "checkedAt": "2026-10-25T16:16:17.591Z",
+    "sourcify": {
+      "attempt": "submitted",
+      "status": "exact_match"
+    },
+    "etherscan": {
+      "attempt": "failed: The Etherscan API responded with a failure status.",
+      "status": "verified"
+    }
+  },
+  "8453": {
+    "network": "base",
+    "address": "0xc5b8A9e7175c102d51116249F121A65079224b6f",
+    "runtimeHash": "0xfa43f529928cd8598fca3d3feb49ff50ff09517bc80be99c24108524a1fde02e",
+    "checkedAt": "2026-10-25T16:16:05.468Z",
+    "sourcify": {
+      "attempt": "already verified",
+      "status": "exact_match"
+    },
+    "etherscan": {
+      "attempt": "submitted",
+      "status": "verified"
+    }
+  },
   "10143": {
     "network": "monadTestnet",
     "address": "0xc5b8A9e7175c102d51116249F121A65079224b6f",
