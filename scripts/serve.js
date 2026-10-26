@@ -22,7 +22,8 @@ const relay = createRelay(`http://localhost:${PORT}`);
 
 function resolve(pathname) {
   if (VENDOR[pathname]) return VENDOR[pathname];
-  const file = path.join(WEB, pathname === "/" ? "index.html" : decodeURIComponent(pathname));
+  // A path ending in / (/, /lab/, /blog/, /blog/<slug>/) serves that directory's index.html.
+  const file = path.join(WEB, pathname.endsWith("/") ? decodeURIComponent(pathname) + "index.html" : decodeURIComponent(pathname));
   return file.startsWith(WEB + path.sep) ? file : null;
 }
 
@@ -35,6 +36,11 @@ http
       return res.end(JSON.stringify({ error: "No relayer key: set LAB_RELAYER_KEY or SEPOLIA_ETH_KEY in .env" }));
     }
     const file = resolve(pathname);
+    // A folder without its trailing slash (/lab, /blog): redirect, as static hosts do, so relative links resolve.
+    if (file && fs.existsSync(file) && fs.statSync(file).isDirectory()) {
+      res.writeHead(301, { Location: pathname + "/" });
+      return res.end();
+    }
     const type = file && TYPES[path.extname(file)];
     if (!type || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
       res.writeHead(404, { "Content-Type": "text/plain" });

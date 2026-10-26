@@ -11,10 +11,14 @@
     "deploy:build": "node scripts/build-wallet.js && hardhat run scripts/export-deploy.js",
     "deploy:local-factory": "hardhat run scripts/local-factory.js --network localhost",
     "verify": "hardhat run scripts/verify.js",
-    "verify:key": "node scripts/check-etherscan-key.js"
+    "verify:key": "node scripts/check-etherscan-key.js",
+    "blog:build": "node scripts/build-blog.mjs",
+    "blog:check": "node scripts/build-blog.mjs --check",
+    "blog:preview": "node scripts/build-blog.mjs --preview web/.blog-preview",
+    "site:build": "hardhat compile && hardhat run scripts/export-source.js && hardhat run scripts/export-deploy.js && node scripts/build-blog.mjs --check && node scripts/build-site.mjs"
   },
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "5.0.0",

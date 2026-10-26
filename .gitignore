@@ -9,3 +9,11 @@ web/deployment.json
 web/contract-source.json
 web/deploy-bundle.json
 web/vendor/
+
+# Blog draft previews (docs/blog.md)
+web/.blog-preview/
+
+# Public static site (npm run site:build)
+dist/
+
+.DS_Store

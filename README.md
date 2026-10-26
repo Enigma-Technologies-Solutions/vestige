@@ -191,8 +191,8 @@ the page when the evidence is older than its window: the contract checks the anc
 first, so they would only ever report `StaleBlock`. Co-sign again to get fresh evidence.
 
 The page uses the ETS brand as on sanctum.enigma.sh (ink/volt tokens, Poppins · Inter · Space Mono self-hosted
-under SIL OFL-1.1 in `web/assets/fonts/`), light by default with a dark theme, and a strict CSP: scripts and
-styles load only from the page's origin (`web/app.js`, `web/theme.js`, `web/styles.css`).
+under SIL OFL-1.1 in `web/assets/fonts/`), light by default like Sanctum and Sigil (the system setting is not followed; the lab's toggle switches to dark), and a strict CSP: scripts and
+styles load only from the page's origin (`web/lab/app.js`, `web/theme.js`, `web/styles.css`).
 
 Hardhat 2 only stubs the EIP-2935 contract (NomicFoundation/hardhat#6226): the tests install mainnet's bytecode and
 write the history slots themselves. On the local node, anchors older than 256 blocks would revert
@@ -201,3 +201,27 @@ write the history slots themselves. On the local node, anchors older than 256 bl
 Deploy option: `VESTIGE_BLOCK_INTERVAL_MS` (default 2000).
 Restarting the node wipes the chain: redeploy and reload. Passkeys enrolled for `localhost` stay in your
 authenticator; *Forget* only removes them from the page.
+
+## Public site
+
+`web/` holds the public site: the landing page at `/`, the lab at `/lab/`, the blog at `/blog/`.
+
+```bash
+npm run site:build      # compiles, exports the lab's bundles, checks the blog, writes dist/
+```
+
+`dist/` is plain static files for any host, with a `_headers` file for hosts that read one (Cloudflare Pages, Netlify).
+It is published to <https://vestige.enigma.sh> by `.github/workflows/pages.yml` on every push to `main`; GitHub Pages
+ignores `_headers`. It is an allowlist (`scripts/build-site.mjs`): the deploy page, the WalletConnect bundle and the local
+`deployment.json` are left out, and a static host has no `/relay`. Hosted, the lab offers the public testnets only
+(default Base Sepolia); signing and `verify()` need no wallet, and `cosign()` is paid by the visitor's browser wallet.
+On `localhost` (`npm run serve`) it keeps the local node and the `.env` relayer as before.
+
+## Blog
+
+The site has a static blog at `/blog/`, built from `blog-src/*.md` by `npm run blog:build` into `web/blog/`.
+How to write, preview and publish a post: [`docs/blog.md`](docs/blog.md).
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).

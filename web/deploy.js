@@ -577,7 +577,7 @@ function download(name, data) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function effectiveTheme() { return document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); }
+function effectiveTheme() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'; }
 function renderThemeButton() { $('theme').textContent = effectiveTheme() === 'dark' ? 'Light' : 'Dark'; }
 $('theme').onclick = () => {
   const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
@@ -585,7 +585,6 @@ $('theme').onclick = () => {
   store.set('vestige-theme', next);
   renderThemeButton();
 };
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderThemeButton);
 
 async function init() {
   renderThemeButton();

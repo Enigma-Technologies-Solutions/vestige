@@ -12,13 +12,16 @@ const NETWORKS = {
   sepolia: { name: 'Sepolia', chainId: 11155111, rpc: 'https://ethereum-sepolia-rpc.publicnode.com', explorer: 'https://sepolia.etherscan.io',
     deployBlock: 11985892, blockSeconds: 12, anchorLag: 2, logRange: 5000, lookback: 20000, windowDefault: 10 },
 };
-const NET_KEY = Object.hasOwn(NETWORKS, PARAMS.get('net') ?? '') ? PARAMS.get('net') : 'local';
+// Served from localhost the lab defaults to the local node; hosted, the local node is not offered at all.
+const ON_LOCALHOST = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+if (!ON_LOCALHOST) delete NETWORKS.local;
+const NET_KEY = Object.hasOwn(NETWORKS, PARAMS.get('net') ?? '') ? PARAMS.get('net') : ON_LOCALHOST ? 'local' : 'baseSepolia';
 const NET = NETWORKS[NET_KEY];
 const RPC = NET.rpc;
 // Who pays for cosign() on remote networks: the local server's relayer (key in .env, see scripts/relay.js) if it has
-// one, else the deploy page's test wallet (same origin).
+// one, else the deploy page's test wallet (same origin), else the visitor's own browser wallet (the hosted lab).
 const TEST_WALLET = 'vestige-deploy-test-wallet-key';
-let serverRelay = null;
+let serverRelay = null, browserPayer = false;
 const N = 0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551n;
 const PASSKEYS = 'vestige-lab-passkeys-v1', LEGACY_PASSKEYS = 'vestige-lab-witnesses-v1', MODE = 'vestige-lab-mode';
 const WINDOW = 'vestige-lab-window' + (NET.local ? '' : '-' + NET_KEY);
@@ -343,6 +346,7 @@ async function submit(e, label) {
   try {
     let rc;
     if (serverRelay) rc = await relaySubmit(e);
+    else if (browserPayer) rc = await walletSubmit(e);
     else { const tx = await vestige.cosign(...args(e)); showSent(tx.hash); rc = await tx.wait(); }
     const log = rc.logs.map(l => { try { return vestige.interface.parseLog(l); } catch { return null; } }).find(l => l && l.name === 'Cosigned');
     record('submit.ok', { label, tx: rc.hash, block: rc.blockNumber, gasUsed: rc.gasUsed, cosignId: log.args.cosignId, age: log.args.age, maxAge: log.args.maxAge });
@@ -381,6 +385,28 @@ async function relaySubmit(e) {
   record('relay.sent', { hash: body.hash });
   showSent(body.hash);
   const rc = await provider.waitForTransaction(body.hash);
+  check(rc.status === 1, `cosign() reverted on-chain in block ${rc.blockNumber}`);
+  return rc;
+}
+
+// Sends cosign() from the visitor's browser wallet, switched to this network. Simulating against the public RPC first
+// surfaces the contract's error here, decoded, before the wallet asks for anything.
+async function walletSubmit(e) {
+  check(window.ethereum, `Submitting needs a browser wallet with a little ${NET.name} gas, or run the lab locally (npm run serve).`);
+  const [from] = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  await vestige.cosign.staticCall(...args(e), { from });
+  const chainId = ethers.toQuantity(NET.chainId);
+  try {
+    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId }] });
+  } catch (err) {
+    if (err?.code !== 4902) throw err;
+    await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId, chainName: NET.name, rpcUrls: [NET.rpc], nativeCurrency: { name: 'ETH', symbol: NET.native ?? 'ETH', decimals: 18 }, blockExplorerUrls: [NET.explorer] }] });
+  }
+  const signer = await new ethers.BrowserProvider(window.ethereum).getSigner(from);
+  const tx = await vestige.connect(signer).cosign(...args(e));
+  record('wallet.sent', { hash: tx.hash, from });
+  showSent(tx.hash);
+  const rc = await provider.waitForTransaction(tx.hash);
   check(rc.status === 1, `cosign() reverted on-chain in block ${rc.blockNumber}`);
   return rc;
 }
@@ -608,10 +634,8 @@ async function setMode(next) {
 }
 const MODE_LABEL = { beacon: 'Beacon', handshake: 'Handshake' };
 
-// ---- theme: light by default, follows the system, toggle persists per browser ----
-function effectiveTheme() {
-  return document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-}
+// ---- theme: light by default (not the system's), toggle persists per browser ----
+function effectiveTheme() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'; }
 function renderThemeButton() { $('theme').textContent = effectiveTheme() === 'dark' ? 'Light' : 'Dark'; }
 $('theme').onclick = () => {
   const next = effectiveTheme() === 'dark' ? 'light' : 'dark';
@@ -619,7 +643,6 @@ $('theme').onclick = () => {
   try { localStorage.setItem('vestige-theme', next); } catch {}
   renderThemeButton();
 };
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderThemeButton);
 renderThemeButton();
 
 // ---- wiring ----
@@ -888,7 +911,7 @@ function renderNetworkPicker() {
   sel.value = NET_KEY;
   sel.onchange = () => {
     const next = new URLSearchParams(location.search);
-    if (sel.value === 'local') next.delete('net'); else next.set('net', sel.value);
+    if (sel.value === (ON_LOCALHOST ? 'local' : 'baseSepolia')) next.delete('net'); else next.set('net', sel.value);
     location.search = next.toString();
   };
 }
@@ -916,18 +939,19 @@ async function init() {
     provider = new ethers.JsonRpcProvider(RPC, NET.chainId, { staticNetwork: true, batchMaxCount: 1, pollingInterval: 1000 });
     check(Number(await provider.send('eth_chainId', [])) === NET.chainId, `${RPC} does not serve ${NET.name}`);
     check(await provider.getCode(D.address) === bundle.runtimeBytecode, `Vestige is not deployed on ${NET.name} at ${D.address}. Deploy it from /deploy.html first.`);
-    const relayInfo = await fetch('/relay', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null);
+    // Only scripts/serve.js has a relayer; a static host has none to ask.
+    const relayInfo = ON_LOCALHOST ? await fetch('/relay', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null) : null;
     if (relayInfo?.chains.includes(NET.chainId)) {
       serverRelay = relayInfo;
       relayer = { address: relayInfo.address };
     } else {
       let key = null;
       try { key = localStorage.getItem(TEST_WALLET); } catch {}
-      check(key, `No relayer: put a funded key in .env (LAB_RELAYER_KEY) and restart npm run serve, or create a test wallet on /deploy.html and fund it on ${NET.name}.`);
-      relayer = new ethers.Wallet(key, provider);
+      if (key) relayer = new ethers.Wallet(key, provider);
+      else browserPayer = true;
     }
   }
-  vestige = new ethers.Contract(D.address, D.abi, serverRelay ? provider : relayer);
+  vestige = new ethers.Contract(D.address, D.abi, serverRelay || browserPayer ? provider : relayer);
   beacon = await loadBeaconKey();
   // A valid P-256 point no participant controls, for the wrong-key attacks.
   stranger = await publicPoint((await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign'])).publicKey);
@@ -942,7 +966,9 @@ async function init() {
   $('chainBar').textContent = `vestige.sol · ${NET.local ? 'local node' : NET.name}`;
   $('stale').textContent = NET.local ? 'Mine past the window, submit' : 'Wait out the window, submit';
   $('policy').textContent = `Window set per statement by A (1–${await vestige.MAX_AGE_LIMIT()} blocks) · UV always required`;
+  $('stripNet').textContent = NET.local ? 'Real contract on a local node' : `Real contract on ${NET.name}`;
   if (NET.local) $('relayer').textContent = relayer.address + ' (node account, submits for B)';
+  else if (browserPayer) $('relayer').textContent = `Your browser wallet: it pays ${NET.name} gas when you submit. Signing and verify() need no wallet.`;
   else {
     const balance = await provider.send('eth_getBalance', [relayer.address, 'latest']).then(BigInt);
     $('relayer').textContent = `${relayer.address} (${serverRelay ? 'local server, key from .env' : 'test wallet from /deploy.html'}, submits for B) · ${Number(ethers.formatEther(balance)).toFixed(4)} left`;
@@ -954,7 +980,7 @@ async function init() {
     origin: location.origin, rpId: location.hostname, network: NET_KEY, rpc: RPC, userAgent: navigator.userAgent,
     deployment: { address: D.address, chainId: D.chainId, deployBlock: D.deployBlock },
     window: windowBlocks(),
-    beaconKeyId: keyId(beacon.pub), relayer: relayer.address, passkeys: loadPasskeys().length,
+    beaconKeyId: keyId(beacon.pub), relayer: browserPayer ? 'browser wallet' : relayer.address, passkeys: loadPasskeys().length,
     platformAuthenticator: await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable?.().catch(() => null),
     clientCapabilities: await PublicKeyCredential.getClientCapabilities?.().catch(() => null),
   });

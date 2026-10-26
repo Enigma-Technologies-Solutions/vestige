@@ -1,0 +1,56 @@
+name: Pages
+
+# Builds the public site (npm run site:build → dist/) and publishes it to GitHub
+# Pages, served at https://vestige.enigma.sh (custom domain set in repo
+# Settings → Pages).
+#
+# The build needs no secrets: it compiles the contract, exports the lab's
+# bundles, checks the blog is up to date and copies an allowlist into dist/.
+# The deploy page and the local relayer are not part of it.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write      # to publish the site
+  id-token: write   # to prove the deployment came from this workflow
+
+# One deployment at a time, and never cancel one halfway: a cancelled Pages
+# deploy can leave the previous artifact half-replaced.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy site
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run site:build
+
+      - uses: actions/configure-pages@v5
+
+      # dist/_headers ships too. GitHub Pages ignores it (it cannot send custom
+      # response headers); it is kept so the same build deploys unchanged to
+      # Cloudflare Pages or Netlify, which honour it.
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
