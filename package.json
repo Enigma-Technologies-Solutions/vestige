@@ -15,7 +15,7 @@
     "blog:build": "node scripts/build-blog.mjs",
     "blog:check": "node scripts/build-blog.mjs --check",
     "blog:preview": "node scripts/build-blog.mjs --preview web/.blog-preview",
-    "site:build": "hardhat compile && hardhat run scripts/export-source.js && hardhat run scripts/export-deploy.js && node scripts/build-blog.mjs --check && node scripts/build-site.mjs"
+    "site:build": "node scripts/build-wallet.js && hardhat compile && hardhat run scripts/export-source.js && hardhat run scripts/export-deploy.js && node scripts/build-blog.mjs --check && node scripts/build-site.mjs"
   },
   "author": "",
   "license": "MIT",

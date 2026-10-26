@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Builds dist/: the public, static site. Landing page at /, the lab at /lab/, the blog at /blog/.
-// An allowlist, not a copy of web/: the deploy page, the WalletConnect bundle and the local node's deployment.json
-// stay out, and there is no /relay (that lives in scripts/serve.js, which a static host never runs). The hosted lab
-// works on public testnets and has visitors pay for cosign() from their own browser wallet.
+// An allowlist, not a copy of web/: the deploy page and the local node's deployment.json stay out, and there is no
+// /relay (that lives in scripts/serve.js, which a static host never runs). The hosted lab works on public testnets
+// and has visitors pay for cosign() from their own wallet (browser or WalletConnect).
 //
 //   npm run site:build     compiles, exports the lab's bundles, checks the blog, then writes dist/
 //   npx serve dist         or any static file server, to look at the result
@@ -27,6 +27,9 @@ const FILES = [
   ['deploy-bundle.json', join(WEB, 'deploy-bundle.json')],
   ['contract-source.json', join(WEB, 'contract-source.json')],
   ['vendor/ethers.umd.min.js', join(repo, 'node_modules', 'ethers', 'dist', 'ethers.umd.min.js')],
+  // WalletConnect for the lab's payer, loaded only when a visitor asks for it. Built by scripts/build-wallet.js.
+  ['vendor/wallet.js', join(WEB, 'vendor', 'wallet.js')],
+  ['vendor/wallet.js.LEGAL.txt', join(WEB, 'vendor', 'wallet.js.LEGAL.txt')],
 ];
 
 // Headers for hosts that read a _headers file (Cloudflare Pages, Netlify). The pages carry their CSP in a meta tag;

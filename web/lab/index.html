@@ -6,7 +6,7 @@
 <title>Vestige Lab</title>
 <meta name="description" content="Vestige co-signature lab: a signer and a passkey co-sign a recent block, verified and recorded by Vestige.sol on a local chain. Beacon and Handshake modes.">
 <!-- Scripts and styles come only from this origin; connect-src allows the local JSON-RPC node. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* https://sepolia.base.org https://testnet-rpc.monad.xyz https://ethereum-sepolia-rpc.publicnode.com; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self' http://127.0.0.1:* http://localhost:* https://sepolia.base.org https://testnet-rpc.monad.xyz https://ethereum-sepolia-rpc.publicnode.com https://*.walletconnect.org https://*.walletconnect.com wss://*.walletconnect.org wss://*.walletconnect.com https://*.reown.com; frame-src https://verify.walletconnect.org https://verify.walletconnect.com; form-action 'none'; base-uri 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="color-scheme" content="light">
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
@@ -144,6 +144,17 @@
             <button class="btn btn--volt" id="cosign" type="button">Co-sign as B</button>
             <button class="btn btn--volt" id="submit" type="button">Submit cosign()</button>
           </div>
+          <div class="pair" id="pair" hidden>
+            <img class="pair__qr" id="qr" alt="WalletConnect pairing QR code" width="232" height="232">
+            <div class="pair__text">
+              <p>Scan with a wallet that holds a little testnet gas. It only pays for <code>cosign()</code>; your passkey already signed.</p>
+              <div class="btn-row">
+                <a class="btn btn--ghost btn--sm" id="openWallet" href="#">Open wallet app</a>
+                <button class="btn btn--ghost btn--sm" id="copyUri" type="button" data-always>Copy pairing link</button>
+                <button class="btn btn--ghost btn--sm" id="cancelPair" type="button" data-always>Cancel</button>
+              </div>
+            </div>
+          </div>
           <div class="outcome">
             <span class="outcome__label" id="resultLabel">Not recorded</span>
             <span class="st" id="result">Idle</span>
@@ -184,6 +195,10 @@
             <dt>Relayer</dt><dd id="relayer">—</dd>
             <dt>Source</dt><dd><a class="link" href="#source" id="sourceLink">Read the verified source ↓</a></dd>
           </dl>
+          <div class="btn-row" id="payerRow" hidden>
+            <button class="btn btn--ghost btn--sm" id="wcConnect" type="button">Pay with WalletConnect</button>
+            <button class="btn btn--ghost btn--sm" id="wcDisconnect" type="button" hidden>Disconnect WalletConnect</button>
+          </div>
           <div class="btn-row">
             <button class="btn btn--ghost btn--sm" id="replay" type="button">Replay last accepted</button>
             <button class="btn btn--ghost btn--sm" id="stale" type="button">Mine past the window, submit</button>

@@ -389,26 +389,164 @@ async function relaySubmit(e) {
   return rc;
 }
 
-// Sends cosign() from the visitor's browser wallet, switched to this network. Simulating against the public RPC first
-// surfaces the contract's error here, decoded, before the wallet asks for anything.
+// Sends cosign() from the visitor's own wallet: a WalletConnect session if there is one, else the browser wallet, else
+// a new WalletConnect pairing. Simulating against the public RPC first surfaces the contract's error here, decoded,
+// before any wallet is asked for anything; the attacks never get further than that.
 async function walletSubmit(e) {
-  check(window.ethereum, `Submitting needs a browser wallet with a little ${NET.name} gas, or run the lab locally (npm run serve).`);
-  const [from] = await window.ethereum.request({ method: 'eth_requestAccounts' });
-  await vestige.cosign.staticCall(...args(e), { from });
+  const [cosignId] = await vestige.cosign.staticCall(...args(e));
+  if (!wcAccount && !window.ethereum) await connectWalletConnect();
+  const eip = wcAccount ? wc : window.ethereum;
+  const from = wcAccount ?? ethers.getAddress((await eip.request({ method: 'eth_requestAccounts' }))[0]);
   const chainId = ethers.toQuantity(NET.chainId);
-  try {
-    await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId }] });
-  } catch (err) {
-    if (err?.code !== 4902) throw err;
-    await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [{ chainId, chainName: NET.name, rpcUrls: [NET.rpc], nativeCurrency: { name: 'ETH', symbol: NET.native ?? 'ETH', decimals: 18 }, blockExplorerUrls: [NET.explorer] }] });
+  if (Number(await eip.request({ method: 'eth_chainId' })) !== NET.chainId) {
+    status(`Switch the wallet to ${NET.name}…`, 'warn', 'Wallet');
+    try {
+      await eip.request({ method: 'wallet_switchEthereumChain', params: [{ chainId }] });
+    } catch (err) {
+      if (eip === wc) throw new Error(`The wallet did not switch to ${NET.name}: ${reason(err)}. Disconnect WalletConnect and pair again, approving ${NET.name}.`);
+      if (err?.code !== 4902) throw err;
+      await eip.request({ method: 'wallet_addEthereumChain', params: [{ chainId, chainName: NET.name, rpcUrls: [NET.rpc], nativeCurrency: { name: 'ETH', symbol: NET.native ?? 'ETH', decimals: 18 }, blockExplorerUrls: [NET.explorer] }] });
+    }
+    const active = Number(await eip.request({ method: 'eth_chainId' }));
+    check(active === NET.chainId, `The wallet is on chain ${active}, not ${NET.name} (${NET.chainId})`);
   }
-  const signer = await new ethers.BrowserProvider(window.ethereum).getSigner(from);
-  const tx = await vestige.connect(signer).cosign(...args(e));
-  record('wallet.sent', { hash: tx.hash, from });
-  showSent(tx.hash);
-  const rc = await provider.waitForTransaction(tx.hash);
+  const data = vestige.interface.encodeFunctionData('cosign', args(e));
+  const gas = await provider.estimateGas({ from, to: D.address, data });
+  status(`Confirm cosign() in your wallet${eip === wc ? ' (check your phone)' : ''}…`, 'warn', 'Wallet');
+  const hash = await eip.request({ method: 'eth_sendTransaction', params: [{ from, to: D.address, data, gas: ethers.toQuantity(gas * 12n / 10n) }] });
+  record('wallet.sent', { hash, from, via: eip === wc ? 'WalletConnect' : 'browser wallet' });
+  showSent(hash);
+  const rc = await waitForCosign(hash, cosignId);
   check(rc.status === 1, `cosign() reverted on-chain in block ${rc.blockNumber}`);
   return rc;
+}
+
+// A smart-account wallet may return a user-operation hash rather than a transaction hash, so this also watches for
+// the record itself and reads the receipt of whichever transaction made it.
+async function waitForCosign(hash, cosignId) {
+  const deadline = Date.now() + 5 * 60_000;
+  while (Date.now() < deadline) {
+    const rc = await provider.getTransactionReceipt(hash).catch(() => null);
+    if (rc) return rc;
+    if (await vestige.recorded(cosignId)) {
+      const latest = await provider.getBlockNumber();
+      const [log] = await vestige.queryFilter(vestige.filters.Cosigned(cosignId), Math.max(0, latest - NET.logRange + 1), latest);
+      if (log) return provider.getTransactionReceipt(log.transactionHash);
+    }
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  throw new Error(`No receipt for ${short(hash)} after 5 minutes. Check it on the explorer; reload to see the record if it landed.`);
+}
+
+// ---- WalletConnect ----
+// For visitors without a browser wallet, or who would rather pay from a phone. Same Reown project as /deploy.html; its
+// allowed origins must include this site. The bundle (web/vendor/wallet.js) loads only when it is needed.
+const WC_PROJECT_ID = 'b6e2a9dea4c173bca01c645f4a241a16';
+const WC_SESSION = 'vestige-lab-wc-session';
+let wc = null, wcAccount = null, pairingUri = '', relayError = null, cancelPairing = null;
+
+function loadWalletBundle() {
+  if (window.VestigeWallet) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = '/vendor/wallet.js';
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('The WalletConnect bundle did not load. Run npm run deploy:build.'));
+    document.head.append(script);
+  });
+}
+
+async function initWc() {
+  await loadWalletBundle();
+  const remote = Object.values(NETWORKS).filter(n => !n.local);
+  const p = await window.VestigeWallet.EthereumProvider.init({
+    projectId: WC_PROJECT_ID,
+    showQrModal: false,
+    optionalChains: remote.map(n => n.chainId),
+    rpcMap: Object.fromEntries(remote.map(n => [n.chainId, n.rpc])),
+    metadata: { name: 'Vestige Lab', description: 'Pays for cosign(): records a passkey co-signature on a testnet', url: location.origin, icons: [location.origin + '/assets/favicon.svg'] },
+  });
+  p.on('display_uri', showPairing);
+  p.signer?.client?.core?.relayer?.on?.('relayer_error', err => { relayError = err?.message ?? String(err); record('wallet.relay.error', { error: relayError }); });
+  // Wallets re-announce the same account on every chain switch; only a different account is news.
+  p.on('accountsChanged', a => { if (a[0] && ethers.getAddress(a[0]) !== wcAccount) { wcAccount = ethers.getAddress(a[0]); renderPayer(); } });
+  p.on('disconnect', () => { wcAccount = null; rememberSession(false); record('wallet.disconnected', { via: 'WalletConnect' }); renderPayer(); });
+  return p;
+}
+
+async function connectWalletConnect() {
+  wc ??= await initWc();
+  if (!wc.session) {
+    status('Opening a WalletConnect session…', 'warn', 'Pairing');
+    try {
+      await new Promise((resolve, reject) => {
+        // The SDK retries a refused relay connection forever; give up if no pairing code arrives.
+        const timer = setTimeout(() => {
+          const relay = relayError ? ` The relay answered: “${relayError}”.` : '';
+          reject(new Error(`WalletConnect produced no pairing code within 20 s.${relay} ${location.origin} may not be an allowed origin for this project.`));
+        }, 20000);
+        showPairing.onShown = () => clearTimeout(timer);
+        cancelPairing = () => { clearTimeout(timer); reject(new Error('Pairing cancelled')); };
+        wc.connect().then(resolve, reject).finally(() => clearTimeout(timer));
+      });
+    } finally {
+      cancelPairing = null;
+      $('pair').hidden = true;
+    }
+  }
+  wcAccount = ethers.getAddress(wc.accounts[0]);
+  rememberSession(true);
+  record('wallet.connected', { via: 'WalletConnect', account: wcAccount });
+  status(`Connected ${short(wcAccount)} via WalletConnect. It pays for cosign() on ${NET.name}.`, 'ok', 'Wallet');
+  renderPayer();
+}
+
+function showPairing(uri) {
+  pairingUri = uri;
+  showPairing.onShown?.();
+  const qr = window.VestigeWallet.qrcode(0, 'M');
+  qr.addData(uri); qr.make();
+  $('qr').src = qr.createDataURL(6, 2);
+  $('openWallet').href = uri;
+  $('pair').hidden = false;
+  $('pair').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  status('Scan the QR code with your wallet, or open or copy the pairing link.', 'warn', 'Pairing');
+}
+
+async function disconnectWalletConnect() {
+  await wc?.disconnect().catch(() => {});
+  wcAccount = null;
+  rememberSession(false);
+  renderPayer();
+}
+
+function renderPayer() {
+  if (!browserPayer) return;
+  $('relayer').textContent = wcAccount
+    ? `${wcAccount} via WalletConnect: it pays ${NET.name} gas when you submit.`
+    : window.ethereum
+      ? `Your browser wallet pays ${NET.name} gas when you submit, or pay from a phone with WalletConnect. Signing and verify() need no wallet.`
+      : `A wallet you pair over WalletConnect pays ${NET.name} gas when you submit. Signing and verify() need no wallet.`;
+  $('payerRow').hidden = false;
+  $('wcConnect').hidden = Boolean(wcAccount);
+  $('wcDisconnect').hidden = !wcAccount;
+}
+
+// The SDK keeps sessions in IndexedDB; this flag only says one exists, so a visit without one never loads the bundle.
+function rememberSession(on) {
+  try { on ? localStorage.setItem(WC_SESSION, '1') : localStorage.removeItem(WC_SESSION); } catch {}
+}
+
+// Restores a WalletConnect session from an earlier visit without asking.
+async function restoreWalletConnect() {
+  let stored = false;
+  try { stored = localStorage.getItem(WC_SESSION) === '1'; } catch {}
+  if (!stored) return;
+  try {
+    wc = await initWc();
+    if (wc.session && wc.accounts[0]) { wcAccount = ethers.getAddress(wc.accounts[0]); renderPayer(); }
+    else rememberSession(false);
+  } catch (err) { record('wallet.restore.error', { error: reason(err) }); }
 }
 
 // The contract checks the anchor's age before anything else, so an attack built on stale evidence
@@ -659,6 +797,11 @@ $('signerKey').onchange = () => { if (mode === 'handshake') { current = null; ev
 $('signA').onclick = () => run(signAsA);
 $('cosign').onclick = () => run(async () => { setResult('Not recorded', 'Signing', 'warn'); await cosignAsB(); });
 $('submit').onclick = () => run(() => submit(evidence, 'submit'));
+$('wcConnect').onclick = () => run(connectWalletConnect);
+$('wcDisconnect').onclick = () => run(disconnectWalletConnect);
+// Both work while pairing holds the lab busy.
+$('copyUri').onclick = () => navigator.clipboard.writeText(pairingUri).then(() => status('Pairing link copied. Paste it into the wallet.', 'ok', 'Copied'), e => status(reason(e), 'bad'));
+$('cancelPair').onclick = () => cancelPairing?.();
 $('replay').onclick = () => run(async () => {
   check(lastAccepted, 'Record a co-signature first');
   await assertFresh(lastAccepted, 'replay');
@@ -968,7 +1111,7 @@ async function init() {
   $('policy').textContent = `Window set per statement by A (1–${await vestige.MAX_AGE_LIMIT()} blocks) · UV always required`;
   $('stripNet').textContent = NET.local ? 'Real contract on a local node' : `Real contract on ${NET.name}`;
   if (NET.local) $('relayer').textContent = relayer.address + ' (node account, submits for B)';
-  else if (browserPayer) $('relayer').textContent = `Your browser wallet: it pays ${NET.name} gas when you submit. Signing and verify() need no wallet.`;
+  else if (browserPayer) { renderPayer(); restoreWalletConnect(); }
   else {
     const balance = await provider.send('eth_getBalance', [relayer.address, 'latest']).then(BigInt);
     $('relayer').textContent = `${relayer.address} (${serverRelay ? 'local server, key from .env' : 'test wallet from /deploy.html'}, submits for B) · ${Number(ethers.formatEther(balance)).toFixed(4)} left`;

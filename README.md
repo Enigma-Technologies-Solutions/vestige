@@ -180,7 +180,10 @@ Open **http://localhost:8080** (use `localhost`, not `127.0.0.1`: the passkey RP
 against the CREATE2 deployment there, over the public RPC. `cosign()` is paid by the relayer in `npm run serve`
 (`scripts/relay.js`) when `.env` has `LAB_RELAYER_KEY` (or `SEPOLIA_ETH_KEY`): the key stays in the server, which only
 sends `cosign()` to Vestige on these testnets and only for requests from the lab's own origin. Without it, the deploy
-page's test wallet pays (same origin). Attacks and `verify()` are simulated and cost nothing.
+page's test wallet pays (same origin), and without that the visitor's own wallet: an injected browser wallet, or any
+wallet paired over WalletConnect (*Pay with WalletConnect*, or automatically when there is no browser wallet). The
+WalletConnect bundle loads only then, and uses the deploy page's Reown project, whose allowed origins must include the
+site. Attacks and `verify()` are simulated and cost nothing; they never reach a wallet.
 Defaults change with the chain: A anchors 2 blocks behind head (load-balanced RPCs), the window defaults to about two
 minutes (600 blocks on Base Sepolia at 0.2 s, 400 on Monad at 0.3 s, 10 on Sepolia) and goes up to 8191, so anchors
 older than 256 blocks exercise EIP-2935 for real. *Stale* waits out the window instead of mining, and the public
@@ -212,9 +215,9 @@ npm run site:build      # compiles, exports the lab's bundles, checks the blog, 
 
 `dist/` is plain static files for any host, with a `_headers` file for hosts that read one (Cloudflare Pages, Netlify).
 It is published to <https://vestige.enigma.sh> by `.github/workflows/pages.yml` on every push to `main`; GitHub Pages
-ignores `_headers`. It is an allowlist (`scripts/build-site.mjs`): the deploy page, the WalletConnect bundle and the local
-`deployment.json` are left out, and a static host has no `/relay`. Hosted, the lab offers the public testnets only
-(default Base Sepolia); signing and `verify()` need no wallet, and `cosign()` is paid by the visitor's browser wallet.
+ignores `_headers`. It is an allowlist (`scripts/build-site.mjs`): the deploy page and the local `deployment.json` are left
+out, and a static host has no `/relay`. Hosted, the lab offers the public testnets only (default Base Sepolia); signing
+and `verify()` need no wallet, and `cosign()` is paid by the visitor's browser wallet or a WalletConnect wallet.
 On `localhost` (`npm run serve`) it keeps the local node and the `.env` relayer as before.
 
 ## Blog
