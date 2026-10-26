@@ -2,6 +2,9 @@
   <title>Vestige</title>
   <rect x="0" y="0" width="64" height="64" fill="#0A0A0A"/>
   <rect x="6.50" y="6.50" width="51.00" height="51.00" fill="none" stroke="#FBFF00" stroke-width="3"/>
-  <path d="M14 17h8.6l7.4 22.4L37.4 17H46L34.4 46h-8.8z" fill="#FFFFFF"/>
-  <rect x="44.4" y="40.4" width="5.6" height="5.6" fill="#FBFF00"/>
+  <g fill="#FFFFFF" transform="translate(13.83 40.39) scale(0.03008 -0.03008)">
+    <path transform="translate(0 0)" d="M313 160 434 558H616L418 0H207L9 558H192Z"/>
+    <path transform="translate(606 0)" d="M373 145V0H286Q193 0 141.0 45.5Q89 91 89 194V416H21V558H89V694H260V558H372V416H260V192Q260 167 272.0 156.0Q284 145 312 145Z"/>
+  </g>
+  <rect x="45.39" y="35.88" width="4.51" height="4.51" fill="#FBFF00"/>
 </svg>
