@@ -144,6 +144,10 @@ npm test                 # native P-256 (Osaka default)  ~84k gas (Beacon) / ~96
 npm run test:fallback    # Solidity P-256 fallback        ~563k / ~574k
 ```
 
+`npm run check:bytecode` fails if a fresh build no longer matches the runtime code recorded in `verification.json`
+(a different build would deploy to a different address). `.github/workflows/test.yml` runs it and both test suites on
+every push and pull request.
+
 ## Lab: real passkeys against a local node
 
 ```bash

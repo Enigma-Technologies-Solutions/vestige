@@ -1,0 +1,38 @@
+name: Test
+
+# Runs the contract tests twice, against the native P-256 precompile (Osaka) and
+# against OpenZeppelin's Solidity fallback, and checks that the build still
+# matches the bytecode deployed at the CREATE2 address. Needs no secrets.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests and bytecode check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run check:bytecode
+
+      - run: npm test
+
+      - run: npm run test:fallback

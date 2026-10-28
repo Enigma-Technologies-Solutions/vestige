@@ -5,6 +5,7 @@
   "scripts": {
     "test": "hardhat test",
     "test:fallback": "P256_PRECOMPILE=0 hardhat test",
+    "check:bytecode": "hardhat compile && node scripts/check-bytecode.js",
     "node": "hardhat node",
     "deploy": "hardhat run scripts/deploy.js --network localhost",
     "serve": "node scripts/serve.js",
